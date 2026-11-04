@@ -18,6 +18,8 @@ NSString* const kWindowKey = @"Windowed";
 NSString* const kTouchKey = @"TouchControls";
 NSString* const kOverNotchKey = @"FullScreenOverNotch";
 NSString* const kVsyncKey = @"VerticalSync";  // 0 the game's setting, 1 on, 2 off
+// Frames a second at most: 0 the display's rate, 1 60, 2 40, 3 30.
+NSString* const kFrameLimitKey = @"FrameLimit";
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
 NSString* const kAntiAliasingKey = @"AntiAliasing";  // 0 off, 1 SMAA, 2 MetalFX, 3 TAA, 4 SMAA + MetalFX spatial
 NSString* const kMetalFXScaleKey = @"MetalFXScale";  // 0 native, 1 quality, 2 balanced, 3 performance
@@ -208,7 +210,7 @@ NSString* ModsFolder() {
 // The defaults of every option (the player's choices override them).
 void RegisterDefaults(NSUserDefaults* d) {
   NSMutableDictionary* defaults =
-      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kTouchKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
+      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kTouchKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3, kFrameLimitKey : @0}];
   for (const Fix& f : kFixes) defaults[f.key] = @(f.on);
   for (const ShaderChoice& sc : kShaderChoices) defaults[sc.key] = @(sc.def);
   [d registerDefaults:defaults];
@@ -224,6 +226,13 @@ void ApplyOptions(NSUserDefaults* d) {
     case 2: setenv("GTAIV_VSYNC", "0", 1); break;
     default: unsetenv("GTAIV_VSYNC"); break;
   }
+  // The frame limiter (present.cpp): the game's own physics and script
+  // timers expect 60 or less, and a 120 Hz display gets 120 without it.
+  static const int kFrameLimits[] = {0, 60, 40, 30};
+  const int frame_limit =
+      kFrameLimits[std::clamp<NSInteger>([d integerForKey:kFrameLimitKey], 0, 3)];
+  if (frame_limit) setenv("GTAIV_FPS_LIMIT", std::to_string(frame_limit).c_str(), 1);
+  else unsetenv("GTAIV_FPS_LIMIT");
   // The Metal renderer (its anti-aliasing, upscalers and fixes): without
   // GTAIV_GFX the runtime takes its generic SDL GPU path, much slower.
   setenv("GTAIV_GFX", "metal", 0);
